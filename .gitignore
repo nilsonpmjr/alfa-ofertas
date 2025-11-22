@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Database
+deals.db
+
+# Playwright
+ml_dump.html
+ml_debug.png
+test-results/
+
+# IDE
+.vscode/
+.idea/
+
+# Mac
+.DS_Store

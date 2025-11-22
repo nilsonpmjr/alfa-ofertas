@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfa Ofertas 🐺</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #fbbf24;
+            /* Gold/Amber for Alfa */
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 20px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .brand img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-badge {
+            background: #334155;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            color: var(--success);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s;
+            border: 1px solid #334155;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .card-image {
+            width: 100%;
+            height: 200px;
+            background-color: #000;
+            object-fit: cover;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        .source-tag {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0 0 10px 0;
+            line-height: 1.4;
+        }
+
+        .price-container {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .current-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+
+        .original-price {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .discount-badge {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: var(--accent);
+            color: #0f172a;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 700;
+            transition: background 0.2s;
+            text-transform: uppercase;
+        }
+
+        .btn:hover {
+            background-color: #d97706;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <img src="/static/logo.jpg" alt="Alfa Ofertas Logo">
+                <div>
+                    <h1>Alfa Ofertas</h1>
+                    <p style="color: var(--text-secondary); margin: 5px 0 0 0; font-size: 0.9rem;">Caçando ofertas de
+                        verdade. Sem enrolação.</p>
+                </div>
+            </div>
+            <div class="status-badge">● Sistema Ativo</div>
+        </header>
+
+        <div id="deals-grid" class="grid">
+            <!-- Deals will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        async function fetchDeals() {
+            try {
+                const response = await fetch('/api/deals');
+                const deals = await response.json();
+                const grid = document.getElementById('deals-grid');
+
+                grid.innerHTML = deals.map(deal => `
+                    <div class="card">
+                        <img src="${deal.image || 'https://via.placeholder.com/300?text=No+Image'}" class="card-image" alt="${deal.title}">
+                        <div class="card-content">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <span class="source-tag">${deal.source}</span>
+                                ${deal.rating ? `<span style="font-size: 0.8rem; color: #fbbf24;">⭐ ${deal.rating}</span>` : ''}
+                            </div>
+                            <h3 class="card-title">${deal.title}</h3>
+                            
+                            ${deal.seller ? `<div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px;">Vendor: ${deal.seller}</div>` : ''}
+                            
+                            <div class="price-container">
+                                <span class="current-price">R$ ${deal.price}</span>
+                                ${deal.original_price ? `<span class="original-price">R$ ${deal.original_price}</span>` : ''}
+                                <span class="discount-badge">-${deal.discount}%</span>
+                            </div>
+                            <a href="${deal.link}" target="_blank" class="btn">Ver Oferta 🔗</a>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching deals:', error);
+            }
+        }
+
+        // Poll every 5 seconds
+        fetchDeals();
+        setInterval(fetchDeals, 5000);
+    </script>
+</body>
+
+</html>
