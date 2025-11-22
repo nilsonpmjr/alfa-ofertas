@@ -19,23 +19,53 @@ class Config:
     MIN_RATING = 4.0   # User requested min 4.0 stars
     MAX_DAILY_DEALS = 15 # User requested max 15 deals per day
     
-    # Niche Keywords: Tools, Auto, Tech, Tactical, DIY
+    # Search Keywords (Alfa Ofertas Niche)
     KEYWORDS = [
-        # Power & Hand Tools
-        "furadeira impacto", "parafusadeira bateria", "jogo chaves", "serra circular", "esmerilhadeira",
-        "multimetro digital", "trena laser", "caixa ferramentas",
+        # --- Category A: Tools & Hardware (Primary) ---
+        "Jogo de ferramentas", "Kit ferramentas completo", "Maleta de ferramentas", "Caixa de ferramentas", "Ferramentas manuais",
+        "Parafusadeira e Furadeira", "Parafusadeira de impacto", "Martelete rompedor", "Esmerilhadeira angular",
+        "Serra tico tico", "Serra circular", "Lixadeira orbital", "Nível a laser", "Trena a laser", "Medidor de distância",
         
-        # Automotive
-        "aspirador automotivo", "compressor ar portatil", "macaco hidraulico", "carregador bateria carro",
-        "kit reparo pneu", "dashcam",
+        # --- Category B: Automotive & Garage ---
+        "Aspirador automotivo portátil", "Compressor de ar portátil", "Mini compressor pneu", "Auxiliar de partida", "Jump starter",
+        "Carregador de bateria carro", "Macaco hidráulico garrafa", "Macaco jacaré", "Chave de roda cruz",
+        "Kit limpeza automotiva", "Cera automotiva", "Lavadora de alta pressão", "Organizador de garagem", "Painel de ferramentas",
         
-        # Men's Tech Gadgets
-        "smartwatch", "fone bluetooth cancelamento ruido", "power bank", "drone camera",
-        "caixa som bluetooth potente",
+        # --- Category C: Tactical, Outdoor & EDC ---
+        "Canivete tático", "Canivete dobrável", "Faca tática", "Faca sobrevivência", 
+        "Lanterna tática", "Mochila tática", "Mochila militar", "Bornal de perna", "Pochete tática", "Luva tática",
+        "Pederneira", "Filtro de água portátil", "Kit primeiros socorros tático", "Isqueiro plasma", "Maçarico portátil",
         
-        # Tactical/Outdoor
-        "canivete tatico", "lanterna tatica", "mochila militar", "botas taticas", "barraca camping",
+        # --- Category D: Rugged Tech & Utility ---
+        "Power bank robusto", "Carregador portátil alta capacidade", "Smartwatch robusto", "Caixa de som bluetooth resistente",
+        "Cabos reforçados", "Suporte celular moto metálico", "Suporte celular carro robusto",
         
-        # DIY Hardware
-        "fita led", "tomada inteligente", "interruptor inteligente", "kit arduino"
+        # --- Category E: Lifestyle & BBQ ---
+        "Kit churrasco inox", "Faca do chef", "Faca churrasco artesanal", "Tábua de carne rústica",
+        "Garrafa térmica", "Copo térmico", "Cooler", "Caixa térmica"
     ]
+    
+    # Negative Keywords (Exclude results containing these)
+    NEGATIVE_KEYWORDS = [
+        "infantil", "brinquedo", "feminino", "decoração", "capinha", "usado", "kids", "boneco"
+    ]
+
+    # Search Settings
+    # ...
+
+def job():
+    # ... (ML part is fine)
+
+    # 2. Scrape Amazon (Per Keyword)
+    # Randomize keywords
+    import random
+    selected_keywords = random.sample(Config.KEYWORDS, min(3, len(Config.KEYWORDS)))
+    
+    for keyword in selected_keywords:
+        # Check limit again inside loop
+        if db.get_today_deals_count() >= Config.MAX_DAILY_DEALS:
+            break
+            
+        print(f"Searching Amazon for {keyword}...")
+        deals = scraper.search(keyword) 
+        process_deals(deals)

@@ -18,7 +18,9 @@ scraper = PlaywrightScraper()
 db = Database()
 
 # In-memory list for dashboard (still transient, but filtered by DB)
-all_deals = [] 
+# Load recent deals from DB on startup
+all_deals = db.get_recent_deals()
+print(f"Loaded {len(all_deals)} deals from database.")
 
 def job():
     # Check daily limit via DB
@@ -33,12 +35,22 @@ def job():
     print("Fetching Mercado Livre Lightning Deals...")
     ml_deals = scraper.scrape_ml_offers()
     
-    # Filter ML deals by keywords
+    # Filter ML deals by keywords and negative keywords
     filtered_ml_deals = []
     for deal in ml_deals:
+        title_lower = deal['title'].lower()
+        
+        # Check negative keywords first
+        if any(neg in title_lower for neg in Config.NEGATIVE_KEYWORDS):
+            # print(f"Skipped ML deal (Negative keyword): {deal['title']}")
+            continue
+
         # Check if any keyword is in the title (case insensitive)
-        if any(keyword.lower() in deal['title'].lower() for keyword in Config.KEYWORDS):
+        if any(keyword.lower() in title_lower for keyword in Config.KEYWORDS):
             filtered_ml_deals.append(deal)
+        else:
+            # print(f"Skipped ML deal (No keyword match): {deal['title']}")
+            pass
             
     print(f"Found {len(ml_deals)} total ML deals, {len(filtered_ml_deals)} matched keywords.")
     
@@ -64,6 +76,11 @@ def process_deals(deals):
         if db.get_today_deals_count() >= Config.MAX_DAILY_DEALS:
             return
 
+        # Check negative keywords (Double check for Amazon/Scraped items)
+        if any(neg in deal['title'].lower() for neg in Config.NEGATIVE_KEYWORDS):
+            # print(f"Skipped deal (Negative keyword): {deal['title']}")
+            continue
+
         # Check DB for duplicates
         print(f"Processing Deal ID: {deal['id']} | Title: {deal['title'][:20]}...")
         if not db.is_deal_sent_today(deal['id']):
@@ -85,8 +102,19 @@ def process_deals(deals):
             
             print(f"Would send to WhatsApp: \n{msg}\n")
             
-            # Mark as sent in DB
-            db.mark_deal_as_sent(deal['id'], deal['title'])
+            # Send to WhatsApp Service (Node.js)
+            try:
+                import requests
+                response = requests.post('http://localhost:3001/send-deal', json={'deal': deal})
+                if response.status_code == 200:
+                    print("✅ Sent to WhatsApp Service!")
+                else:
+                    print(f"❌ WhatsApp Service Error: {response.text}")
+            except Exception as e:
+                print(f"❌ Could not connect to WhatsApp Service: {e}")
+            
+            # Mark as sent in DB (Pass full deal object now)
+            db.mark_deal_as_sent(deal)
             
             count = db.get_today_deals_count()
             print(f"Deals sent today: {count}/{Config.MAX_DAILY_DEALS}")

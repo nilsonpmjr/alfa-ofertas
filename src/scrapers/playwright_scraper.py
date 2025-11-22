@@ -127,7 +127,7 @@ class PlaywrightScraper:
     def search(self, query: str) -> List[Dict]:
         deals = []
         with sync_playwright() as p:
-            # Launch browser (headless=True for server, False for debugging)
+            # Launch browser
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -135,43 +135,110 @@ class PlaywrightScraper:
             )
             page = context.new_page()
 
-            # --- Mercado Livre (Skipped here, handled by scrape_ml_offers) ---
-            # We keep Amazon search here
+            # --- 1. Mercado Livre Search ---
+            try:
+                # Format query: "jogo de chaves" -> "jogo-de-chaves"
+                formatted_query = query.replace(" ", "-")
+                ml_url = f"https://lista.mercadolivre.com.br/{formatted_query}_Orden_price_asc"
+                print(f"Searching ML for {query}: {ml_url}")
+                
+                page.goto(ml_url, timeout=60000)
+                page.wait_for_load_state('domcontentloaded')
+                
+                # ML Search Results Selectors
+                # Usually 'li.ui-search-layout__item' or 'div.ui-search-result__wrapper'
+                items = page.query_selector_all('li.ui-search-layout__item')
+                if not items:
+                    items = page.query_selector_all('div.ui-search-result__wrapper')
+                
+                print(f"Found {len(items)} items on ML Search")
+                
+                for item in items:
+                    try:
+                        title_el = item.query_selector('h2.ui-search-item__title')
+                        link_el = item.query_selector('a.ui-search-link')
+                        price_el = item.query_selector('span.andes-money-amount__fraction')
+                        
+                        if not title_el or not link_el or not price_el:
+                            continue
 
-            # --- Amazon ---
+                        title = title_el.inner_text().strip()
+                        link = link_el.get_attribute('href')
+                        price = float(price_el.inner_text().replace('.', '').replace(',', '.'))
+                        
+                        # Discount
+                        discount = 0
+                        original_price = price
+                        
+                        discount_el = item.query_selector('span.ui-search-price__discount')
+                        if discount_el:
+                            d_text = discount_el.inner_text().replace('% OFF', '').strip()
+                            try:
+                                discount = int(d_text)
+                                original_price = price / (1 - discount/100)
+                            except:
+                                pass
+                        
+                        # Rating
+                        rating = 0.0
+                        # ML search sometimes doesn't show rating clearly, or uses different classes
+                        # Try to find star icon or aria-label
+                        
+                        # Image
+                        image = ""
+                        img_el = item.query_selector('img.ui-search-result-image__element')
+                        if img_el:
+                            image = img_el.get_attribute('src')
+
+                        # ID Extraction
+                        item_id = link
+                        mlb_match = re.search(r'(MLB-?\d+)', link)
+                        if mlb_match:
+                            item_id = mlb_match.group(1).replace('-', '')
+
+                        if discount >= Config.MIN_DISCOUNT:
+                            deals.append({
+                                "source": "Mercado Livre",
+                                "id": item_id,
+                                "title": title,
+                                "price": price,
+                                "original_price": round(original_price, 2),
+                                "discount": discount,
+                                "rating": rating, # Might be 0 if not found on search page
+                                "link": self._append_affiliate_tag(link, "ML"),
+                                "image": image,
+                            })
+                    except Exception as e:
+                        continue
+
+            except Exception as e:
+                print(f"Error searching ML: {e}")
+
+            # --- 2. Amazon Search ---
             try:
                 print(f"Scraping Amazon for {query}...")
                 page.goto(f"https://www.amazon.com.br/s?k={query}", timeout=60000)
                 page.wait_for_load_state('domcontentloaded')
                 time.sleep(2)
                 
-                print(f"Amazon Title: {page.title()}")
-                page.screenshot(path="amazon_debug.png")
-                
-                # Use more specific selector to avoid logger divs
-                items = page.query_selector_all('div.s-result-item[data-component-type="s-search-result"]')
+                items = page.query_selector_all('div[data-component-type="s-search-result"]')
                 print(f"Found {len(items)} items on Amazon")
                 
-                for i, item in enumerate(items[:10]):
-                    if i == 0:
-                        print(f"Amazon Item HTML: {item.inner_html()[:1000]}")
+                for item in items:
                     try:
-                        # Try h2 first, then span
-                        title_el = item.query_selector('h2 span.a-text-normal')
-                        if not title_el:
-                             title_el = item.query_selector('span.a-text-normal')
-                             
-                        link_el = item.query_selector('a.a-link-normal')
+                        # Title: Try multiple selectors
+                        title_el = item.query_selector('h2 a span')
+                        if not title_el: title_el = item.query_selector('span.a-text-normal')
+                        
+                        # Link
+                        link_el = item.query_selector('h2 a')
+                        if not link_el: link_el = item.query_selector('a.a-link-normal.s-no-outline')
+                        
+                        # Price
                         price_whole = item.query_selector('span.a-price-whole')
                         
-                        if not title_el:
-                            print("Amazon: Missing title")
-                            continue
-                        if not link_el:
-                            print("Amazon: Missing link")
-                            continue
-                        if not price_whole:
-                            print("Amazon: Missing price")
+                        if not title_el or not link_el or not price_whole:
+                            # print("Amazon: Missing core element")
                             continue
                             
                         title = title_el.inner_text().strip()
@@ -179,11 +246,11 @@ class PlaywrightScraper:
                         price_str = price_whole.inner_text().replace('.', '').replace(',', '')
                         price = float(price_str)
                         
-                        # Discount logic
+                        # Discount
                         discount = 0
                         original_price = price
                         
-                        # Amazon often hides original price, check for "a-text-price"
+                        # Look for "List Price" or "Typical Price"
                         op_el = item.query_selector('span.a-text-price span.a-offscreen')
                         if op_el:
                              op_str = op_el.inner_text().replace('R$', '').strip().replace('.', '').replace(',', '.')
@@ -194,15 +261,9 @@ class PlaywrightScraper:
                              except:
                                  pass
 
-                        print(f"Amazon Item: {title[:30]}... | Price: {price} | Discount: {discount}%")
-
                         # Rating
                         rating = 0.0
-                        # Amazon rating: "4.5 de 5 estrelas" in aria-label usually
-                        rating_el = item.query_selector('i.a-icon-star-small span.a-icon-alt')
-                        if not rating_el:
-                             rating_el = item.query_selector('span.a-icon-alt')
-                        
+                        rating_el = item.query_selector('span.a-icon-alt')
                         if rating_el:
                             r_text = rating_el.inner_text().split(' ')[0].replace(',', '.')
                             try:
@@ -227,10 +288,9 @@ class PlaywrightScraper:
                                 "discount": discount,
                                 "rating": rating,
                                 "link": self._append_affiliate_tag(link, "AMZ"),
-                                "image": "",
+                                "image": item.query_selector('img.s-image').get_attribute('src') if item.query_selector('img.s-image') else "",
                             })
                     except Exception as e:
-                        print(f"Error parsing Amazon item: {e}")
                         continue
 
             except Exception as e:

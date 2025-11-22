@@ -21,3 +21,10 @@ test-results/
 
 # Mac
 .DS_Store
+
+# Node.js (WhatsApp Service)
+node_modules/
+whatsapp-service/node_modules/
+whatsapp-service/tokens/
+whatsapp-service/.wppconnect-auth/
+src/static/whatsapp_qr.png
