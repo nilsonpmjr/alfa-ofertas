@@ -11,6 +11,8 @@ deals.db
 # Playwright
 ml_dump.html
 ml_debug.png
+amazon_debug.png
+ml_offers_debug.png
 test-results/
 
 # IDE
