@@ -187,8 +187,8 @@ def test_search_based_affiliate_link(product_url: str):
 
 
 if __name__ == "__main__":
-    # Test with a real product URL
-    test_url = "https://produto.mercadolivre.com.br/MLB-1234567890-test-product"
+    # Test with a real product URL - Smart TV example
+    test_url = "https://produto.mercadolivre.com.br/MLB-3712168817-smart-tv-50-4k-uhd-samsung-crystal-un50cu7700gxzd-_JM"
     
     print("="*60)
     print("ML Affiliate Link Generator - Search-Based Approach Test")

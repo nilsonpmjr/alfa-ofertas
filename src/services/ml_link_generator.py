@@ -27,7 +27,7 @@ class MLLinkGenerator:
     
     def generate_link(self, product_url: str) -> str:
         """
-        Generate affiliate link for a product URL.
+        Generate affiliate link for a product URL using search-based approach.
         
         Args:
             product_url: The original Mercado Livre product URL
@@ -39,7 +39,15 @@ class MLLinkGenerator:
             print("⚠️ No cookies found. Returning original URL.")
             return product_url
         
-        print(f"🔗 Generating ML Affiliate Link for: {product_url[:60]}...")
+        # Extract product ID from URL
+        import re
+        match = re.search(r'MLB-?(\d+)', product_url)
+        if not match:
+            print(f"⚠️ Could not extract product ID from URL")
+            return product_url
+        
+        product_id = f"MLB{match.group(1)}"
+        print(f"🔗 Generating affiliate link for {product_id}...")
         
         captured_link = None
         
@@ -60,7 +68,7 @@ class MLLinkGenerator:
                             first_item = urls_data[0]
                             if isinstance(first_item, dict) and 'short_url' in first_item:
                                 captured_link = first_item['short_url']
-                                print(f"✅ Generated: {captured_link}")
+                                print(f"   ✅ {captured_link}")
                 except:
                     pass
         
@@ -81,45 +89,68 @@ class MLLinkGenerator:
                 page.on("response", handle_response)
                 
                 # Navigate to Affiliate Central
-                page.goto("https://www.mercadolivre.com.br/afiliados/hub", timeout=30000)
+                page.goto("https://www.mercadolivre.com.br/afiliados/hub#menu-lateral", timeout=30000)
                 page.wait_for_load_state('domcontentloaded', timeout=15000)
+                time.sleep(8)
+                
+                # Search for the specific product
+                search_result = page.evaluate(f'''() => {{
+                    const inputs = Array.from(document.querySelectorAll('input'));
+                    const searchInput = inputs.find(input => 
+                        input.placeholder && (
+                            input.placeholder.toLowerCase().includes('buscar') ||
+                            input.placeholder.toLowerCase().includes('pesquisar')
+                        )
+                    );
+                    
+                    if (searchInput) {{
+                        searchInput.value = "{product_id}";
+                        searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        searchInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        return true;
+                    }}
+                    return false;
+                }}''')
+                
                 time.sleep(3)
                 
-                # Make direct API call with the product URL and extract link
-                print(f"   📡 Calling createLink API...")
-                result = page.evaluate(f'''async () => {{
-                    try {{
-                        const response = await fetch('/affiliate-program/api/v2/affiliates/createLink', {{
-                            method: 'POST',
-                            headers: {{
-                                'Content-Type': 'application/json',
-                            }},
-                            body: JSON.stringify({{
-                                url: "{product_url}",
-                                channel: "whatsapp"
-                            }})
-                        }});
-                        const data = await response.json();
-                        if (data && data.urls && data.urls.length > 0 && data.urls[0].short_url) {{
-                            return data.urls[0].short_url;
-                        }}
-                        return null;
-                    }} catch (e) {{
-                        return null;
-                    }}
-                }}''')
+                # Click Compartilhar on the searched product
+                result = page.evaluate('''() => {
+                    const buttons = Array.from(document.querySelectorAll('button'));
+                    const shareBtn = buttons.find(btn => 
+                        btn.textContent.includes('Compartilhar') && btn.offsetParent !== null
+                    );
+                    
+                    if (shareBtn) {
+                        shareBtn.scrollIntoView({ block: 'center' });
+                        setTimeout(() => shareBtn.click(), 500);
+                        return true;
+                    }
+                    return false;
+                }''')
+                
+                if result:
+                    time.sleep(5)
+                    
+                    # Click Copiar link
+                    page.evaluate('''() => {
+                        const buttons = Array.from(document.querySelectorAll('button'));
+                        const copyBtn = buttons.find(btn => btn.textContent.includes('Copiar link'));
+                        if (copyBtn) copyBtn.click();
+                    }''')
+                    
+                    time.sleep(3)
                 
                 browser.close()
                 
-                if result and isinstance(result, str) and 'mercadolivre.com/sec/' in result:
-                    print(f"✅ Generated: {result}")
-                    return result
+                if captured_link:
+                    return captured_link
                 else:
-                    print("⚠️ Failed to generate link. Returning original URL.")
+                    print("   ⚠️ Failed - using original URL")
                     return product_url
                     
         except Exception as e:
-            print(f"❌ Link generation error (timeout or failure): {str(e)[:100]}")
+            print(f"   ❌ Error: {str(e)[:50]} - using original URL")
             return product_url
 
 
