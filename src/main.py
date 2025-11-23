@@ -6,6 +6,15 @@ from src.config import Config
 from src.scrapers.playwright_scraper import PlaywrightScraper
 from src.services.whatsapp import WhatsAppService
 
+# ML Affiliate Link Generation (TEMPORARY DISABLED - API debugging needed)
+ENABLE_ML_AFFILIATE_LINKS = False  # Changed from True to False
+try:
+    from src.services.ml_link_generator import get_ml_affiliate_link
+    print("⚠️ ML Link Generator loaded but DISABLED (API needs fixing)")
+except ImportError:
+    ENABLE_ML_AFFILIATE_LINKS = False
+    print("⚠️ ML Link Generator not available")
+
 app = Flask(__name__)
 whatsapp = WhatsAppService()
 scraper = PlaywrightScraper()
@@ -81,6 +90,17 @@ def process_deals(deals):
             # print(f"Skipped deal (Negative keyword): {deal['title']}")
             continue
 
+        # Generate ML affiliate link if enabled and this is a Mercado Livre deal
+        if ENABLE_ML_AFFILIATE_LINKS and 'mercadolivre.com' in deal.get('link', ''):
+            try:
+                original_link = deal['link']
+                affiliate_link = get_ml_affiliate_link(original_link)
+                if affiliate_link != original_link:
+                    deal['link'] = affiliate_link
+                    print(f"   🔗 Affiliate link generated")
+            except Exception as e:
+                print(f"   ⚠️ ML link generation skipped: {str(e)[:50]}")
+        
         # Check DB for duplicates
         print(f"Processing Deal ID: {deal['id']} | Title: {deal['title'][:20]}...")
         if not db.is_deal_sent_today(deal['id']):
@@ -123,10 +143,20 @@ def process_deals(deals):
             pass
 
 def run_scheduler():
+    print("⏰ Scheduler function started...")
+    
+    # Run job immediately on startup
+    print("🚀 Running first job immediately...")
+    job()
+    
+    # Schedule to run every 1 minute
     schedule.every(1).minutes.do(job)
+    print("📅 Job scheduled to run every 1 minute")
+    
+    # Keep checking and running pending jobs
     while True:
         schedule.run_pending()
-        time.sleep(1)
+        time.sleep(10)  # Check every 10 seconds
 
 @app.route('/')
 def index():
@@ -154,12 +184,13 @@ def webhook():
         print(f"Received webhook: {data}")
         return "OK", 200
 
+# Start scheduler thread (runs regardless of how module is executed)
+print("🚀 Starting scheduler thread...")
+scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+scheduler_thread.start()
+print("✅ Scheduler thread started - will run job every 1 minute")
+
 if __name__ == "__main__":
-    # Start scheduler
-    t = threading.Thread(target=run_scheduler)
-    t.daemon = True
-    t.start()
-    
     # Start Flask server
     print("Starting server on port 3000...")
     app.run(port=3000, host='0.0.0.0')
