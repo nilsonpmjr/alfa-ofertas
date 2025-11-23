@@ -20,6 +20,15 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null
 lsof -ti:3001 | xargs kill -9 2>/dev/null
 sleep 3
 
+# Clear database for fresh start
+echo "🗑️  Clearing deals database for fresh start..."
+if [ -f "deals.db" ]; then
+    mv deals.db "deals.db.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
+    echo "   ✅ Old database backed up"
+else
+    echo "   ℹ️  No database to clear"
+fi
+
 # Start WhatsApp service in background
 echo ""
 echo "📱 Starting WhatsApp Service (port 3001)..."
