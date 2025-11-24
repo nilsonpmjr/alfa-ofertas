@@ -6,11 +6,13 @@ from src.config import Config
 from src.scrapers.playwright_scraper import PlaywrightScraper
 from src.services.whatsapp import WhatsAppService
 
-# ML Affiliate Link Generation (Search-based approach - ENABLED)
-ENABLE_ML_AFFILIATE_LINKS = True
+# ML Affiliate Link Generation (DISABLED - search approach not working correctly)
+# Issue: Same link being generated for different products
+# TODO: Fix search logic or use alternative approach
+ENABLE_ML_AFFILIATE_LINKS = False
 try:
     from src.services.ml_link_generator import get_ml_affiliate_link
-    print("✅ ML Link Generator loaded (search-based)")
+    print("⚠️ ML Link Generator loaded but DISABLED (search not working correctly)")
 except ImportError:
     ENABLE_ML_AFFILIATE_LINKS = False
     print("⚠️ ML Link Generator not available")
