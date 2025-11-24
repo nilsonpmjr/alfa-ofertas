@@ -32,17 +32,29 @@ all_deals = db.get_recent_deals()
 print(f"Loaded {len(all_deals)} deals from database.")
 
 def job():
+    print("🔍 Entering job function...")
     # Check daily limit via DB
-    daily_count = db.get_today_deals_count()
-    if daily_count >= Config.MAX_DAILY_DEALS:
-        print(f"Daily limit reached ({daily_count}/{Config.MAX_DAILY_DEALS}). Skipping job.")
+    try:
+        daily_count = db.get_today_deals_count()
+        print(f"📊 Daily count: {daily_count}")
+    except Exception as e:
+        print(f"❌ DB Error: {e}")
         return
 
-    print("Running scheduled job...")
+    if daily_count >= Config.MAX_DAILY_DEALS:
+        print(f"Daily limit reached ({daily_count}/{Config.MAX_DAILY_DEALS}). Skipping job.", flush=True)
+        return
+
+    print("Running scheduled job...", flush=True)
     
     # 1. Scrape Mercado Livre Offers (Once)
-    print("Fetching Mercado Livre Lightning Deals...")
-    ml_deals = scraper.scrape_ml_offers()
+    print("Fetching Mercado Livre Lightning Deals...", flush=True)
+    try:
+        ml_deals = scraper.scrape_ml_offers()
+        print(f"✅ Scraper returned {len(ml_deals)} deals", flush=True)
+    except Exception as e:
+        print(f"❌ Scraper Error: {e}")
+        ml_deals = []
     
     # Filter ML deals by keywords and negative keywords
     filtered_ml_deals = []
@@ -81,6 +93,10 @@ def job():
         process_deals(deals)
 
 def process_deals(deals):
+    if not deals:
+        print("   ⚠️ No deals to process (all filtered out or none found).", flush=True)
+        return
+
     for deal in deals:
         if db.get_today_deals_count() >= Config.MAX_DAILY_DEALS:
             return

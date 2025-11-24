@@ -11,7 +11,12 @@ class PlaywrightScraper:
         url = "https://www.mercadolivre.com.br/ofertas?container_id=MLB779362-1&promotion_type=lightning#filter_applied=promotion_type&filter_position=2&is_recommended_domain=false&origin=scut"
         
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            print("   🕷️ Launching browser for scraping...")
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--use-gl=egl", "--enable-gpu"],
+                timeout=30000
+            )
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 viewport={'width': 1280, 'height': 720}
@@ -19,8 +24,9 @@ class PlaywrightScraper:
             page = context.new_page()
             
             try:
-                print(f"Scraping Mercado Livre Offers: {url}")
+                print(f"   🕷️ Navigating to: {url[:50]}...")
                 page.goto(url, timeout=60000)
+                print("   🕷️ Page loaded, waiting for DOM...")
                 page.wait_for_load_state('domcontentloaded')
                 
                 # Scroll to load items
@@ -208,6 +214,9 @@ class PlaywrightScraper:
                                 "link": self._append_affiliate_tag(link, "ML"),
                                 "image": image,
                             })
+                        else:
+                            print(f"   Skipped low discount: {discount}% ({title[:30]}...)", flush=True)
+                            pass
                     except Exception as e:
                         continue
 
