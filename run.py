@@ -1,25 +1,21 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from flask import Flask, request, jsonify, render_template
 import threading
 import time
 import schedule
 from src.config import Config
 from src.scrapers.playwright_scraper import PlaywrightScraper
+from src.scrapers.coupon_scraper import CouponScraper
 from src.services.whatsapp import WhatsAppService
-
-# ML Affiliate Link Generation (STRICT MODE)
-# Phase 2: Affiliate Link Integrity Protocol
-# Deals MUST have a generated affiliate link or be discarded.
-ENABLE_ML_AFFILIATE_LINKS = True
-try:
-    from src.services.ml_link_generator import get_ml_affiliate_link
-    print("✅ ML Link Generator loaded (Strict UI Automation)")
-except ImportError:
-    ENABLE_ML_AFFILIATE_LINKS = False
-    print("⚠️ ML Link Generator not available")
+from src.services.ml_link_generator import get_ml_affiliate_link
 
 app = Flask(__name__)
 whatsapp = WhatsAppService()
 scraper = PlaywrightScraper()
+coupon_scraper = CouponScraper()
 
 from src.database import Database
 
@@ -34,29 +30,17 @@ all_deals = db.get_recent_deals()
 print(f"Loaded {len(all_deals)} deals from database.")
 
 def job():
-    print("🔍 Entering job function...")
     # Check daily limit via DB
-    try:
-        daily_count = db.get_today_deals_count()
-        print(f"📊 Daily count: {daily_count}")
-    except Exception as e:
-        print(f"❌ DB Error: {e}")
-        return
-
+    daily_count = db.get_today_deals_count()
     if daily_count >= Config.MAX_DAILY_DEALS:
-        print(f"Daily limit reached ({daily_count}/{Config.MAX_DAILY_DEALS}). Skipping job.", flush=True)
+        print(f"Daily limit reached ({daily_count}/{Config.MAX_DAILY_DEALS}). Skipping job.")
         return
 
-    print("Running scheduled job...", flush=True)
+    print("Running scheduled job...")
     
     # 1. Scrape Mercado Livre Offers (Once)
-    print("Fetching Mercado Livre Lightning Deals...", flush=True)
-    try:
-        ml_deals = scraper.scrape_ml_offers()
-        print(f"✅ Scraper returned {len(ml_deals)} deals", flush=True)
-    except Exception as e:
-        print(f"❌ Scraper Error: {e}")
-        ml_deals = []
+    print("Fetching Mercado Livre Lightning Deals...")
+    ml_deals = scraper.scrape_ml_offers()
     
     # Filter ML deals by keywords and negative keywords
     filtered_ml_deals = []
@@ -80,6 +64,12 @@ def job():
     # Process ML Deals
     process_deals(filtered_ml_deals)
 
+    # 1.5 Scrape Mercado Livre Coupons (New Engine)
+    print("Fetching Mercado Livre Coupon Deals...")
+    coupon_deals = coupon_scraper.scrape_ml_coupons()
+    print(f"Found {len(coupon_deals)} coupon deals.")
+    process_deals(coupon_deals)
+
     # 2. Scrape Amazon (Per Keyword)
     # Randomize keywords
     import random
@@ -95,10 +85,6 @@ def job():
         process_deals(deals)
 
 def process_deals(deals):
-    if not deals:
-        print("   ⚠️ No deals to process (all filtered out or none found).", flush=True)
-        return
-
     for deal in deals:
         if db.get_today_deals_count() >= Config.MAX_DAILY_DEALS:
             return
@@ -108,22 +94,16 @@ def process_deals(deals):
             # print(f"Skipped deal (Negative keyword): {deal['title']}")
             continue
 
-        # Generate ML affiliate link if enabled and this is a Mercado Livre deal
-        final_link = deal['link'] # Initialize final_link with original deal link
-        # 3. Generate Affiliate Link (Strict Mode)
-        if deal.get('source') == "Mercado Livre" and ENABLE_ML_AFFILIATE_LINKS:
-            try:
-                affiliate_link = get_ml_affiliate_link(deal['link'], deal['title'])
-                if affiliate_link:
-                    final_link = affiliate_link
-                    deal['link'] = affiliate_link # Update the deal object so WhatsApp gets the new link
-                    print(f"   🔗 Affiliate link generated")
-                else:
-                    print(f"   ⚠️ Affiliate link generation failed for {deal.get('id', 'N/A')}. DISCARDING deal.")
-                    continue  # Skip this deal entirely per Phase 2 directive
-            except Exception as e:
-                print(f"   ⚠️ ML link generation skipped due to error: {str(e)[:50]}. DISCARDING deal.")
-                continue # Discard on error as well in strict mode
+        # Generate ML affiliate link if this is a Mercado Livre deal
+        if 'mercadolivre.com' in deal.get('link', ''):
+            print(f"🔗 Generating ML affiliate link for: {deal['title'][:30]}...")
+            original_link = deal['link']
+            affiliate_link = get_ml_affiliate_link(original_link)
+            if affiliate_link != original_link:
+                deal['link'] = affiliate_link
+                print(f"   ✅ Generated: {affiliate_link}")
+            else:
+                print(f"   ⚠️ Using original link (generation failed)")
         
         # Check DB for duplicates
         print(f"Processing Deal ID: {deal['id']} | Title: {deal['title'][:20]}...")
@@ -142,7 +122,7 @@ def process_deals(deals):
                   f"🔥 *Por: R$ {deal['price']}*\n" \
                   f"📉 Desconto: {deal['discount']}%\n" \
                   f"{rating_str}\n\n" \
-                  f"🔗 *Link:* {final_link}"
+                  f"🔗 *Link:* {deal['link']}"
             
             print(f"Would send to WhatsApp: \n{msg}\n")
             
@@ -167,20 +147,10 @@ def process_deals(deals):
             pass
 
 def run_scheduler():
-    print("⏰ Scheduler function started...")
-    
-    # Run job immediately on startup
-    print("🚀 Running first job immediately...")
-    job()
-    
-    # Schedule to run every 1 minute
     schedule.every(1).minutes.do(job)
-    print("📅 Job scheduled to run every 1 minute")
-    
-    # Keep checking and running pending jobs
     while True:
         schedule.run_pending()
-        time.sleep(10)  # Check every 10 seconds
+        time.sleep(1)
 
 @app.route('/')
 def index():
@@ -208,13 +178,12 @@ def webhook():
         print(f"Received webhook: {data}")
         return "OK", 200
 
-# Start scheduler thread (runs regardless of how module is executed)
-print("🚀 Starting scheduler thread...")
-scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-scheduler_thread.start()
-print("✅ Scheduler thread started - will run job every 1 minute")
-
 if __name__ == "__main__":
+    # Start scheduler
+    t = threading.Thread(target=run_scheduler)
+    t.daemon = True
+    t.start()
+    
     # Start Flask server
     print("Starting server on port 3000...")
     app.run(port=3000, host='0.0.0.0')

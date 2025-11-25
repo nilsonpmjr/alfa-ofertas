@@ -1,30 +1,55 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+*.pyd
 venv/
 .env
 
-# Database
-deals.db
+# Node.js
+node_modules/
+npm-debug.log
 
-# Playwright
-ml_dump.html
-ml_debug.png
-amazon_debug.png
-ml_offers_debug.png
-test-results/
+# Database
+*.db
+*.db.backup.*
+*.sqlite
+
+# Logs
+logs/
+*.log
+startup_log.txt
+verify_output*.txt
+
+# Authentication & Secrets
+*_auth.json
+secrets.json
+credentials.json
+.env
+
+# Media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.webm
+
+# Scratch & Temporary Scripts
+test_*.py
+!tests/test_*.py
+explore_*.py
+analyze_*.py
+verify_*.py
+inspect_*.py
+deep_explore_*.py
+shopee_*.py
+!src/services/shopee_*.py
 
 # IDE
 .vscode/
 .idea/
 
-# Mac
+# OS
 .DS_Store
-
-# Node.js (WhatsApp Service)
-node_modules/
-whatsapp-service/node_modules/
-whatsapp-service/tokens/
-whatsapp-service/.wppconnect-auth/
-src/static/whatsapp_qr.png
+Thumbs.db

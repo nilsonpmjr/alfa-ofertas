@@ -58,7 +58,7 @@ fi
 # Start Python bot
 echo ""
 echo "🤖 Starting Python Bot (port 3000)..."
-./venv/bin/python3 -u -m src.main > logs/bot.log 2>&1 &
+PYTHONPATH=. ./venv/bin/python3 -u -m src.main > logs/bot.log 2>&1 &
 BOT_PID=$!
 
 # Wait a moment

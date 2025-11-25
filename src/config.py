@@ -49,6 +49,18 @@ class Config:
     NEGATIVE_KEYWORDS = [
         "infantil", "brinquedo", "feminino", "decoração", "capinha", "usado", "kids", "boneco"
     ]
+    
+    # Brand Filtering (Quality Gate)
+    # Tier 1: Pro/High Demand
+    # Tier 2: Prosumer/Reliable
+    # Others: Auto/Tech/Lifestyle
+    PREFERRED_BRANDS = [
+        "Bosch", "Makita", "DeWalt", "Stanley", "Vonder", "Worx", "Black+Decker",
+        "Anker", "Baseus", "JBL", "WAP", "Karcher", "Vonixx", "3M", "Coleman"
+    ]
+    
+    # Feature Flags
+    ENABLE_COUPONS = False  # Paused per Phase 1 directive
 
     # Search Settings
     # ...

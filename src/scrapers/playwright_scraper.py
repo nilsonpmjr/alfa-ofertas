@@ -202,6 +202,25 @@ class PlaywrightScraper:
                         if mlb_match:
                             item_id = mlb_match.group(1).replace('-', '')
 
+                        # Quality Control Protocols (Phase 4)
+                        
+                        # Protocol 2: Noise Canceller (Negative Keywords)
+                        if any(neg.lower() in title.lower() for neg in Config.NEGATIVE_KEYWORDS):
+                            # print(f"   Skipped (Negative Keyword): {title[:30]}...")
+                            continue
+
+                        # Protocol 1: Quality Gate (Brand Filtering)
+                        # Only apply if searching for Tools (Category A)
+                        # We can infer this if the query is in the Tools list
+                        is_tool_search = query in Config.KEYWORDS[:15] # First 15 are tools
+                        
+                        if is_tool_search:
+                            # Check if title contains any preferred brand
+                            has_preferred_brand = any(brand.lower() in title.lower() for brand in Config.PREFERRED_BRANDS)
+                            if not has_preferred_brand:
+                                # print(f"   Skipped (Brand Mismatch): {title[:30]}...")
+                                continue
+                        
                         if discount >= Config.MIN_DISCOUNT:
                             deals.append({
                                 "source": "Mercado Livre",
@@ -210,13 +229,13 @@ class PlaywrightScraper:
                                 "price": price,
                                 "original_price": round(original_price, 2),
                                 "discount": discount,
-                                "rating": rating, # Might be 0 if not found on search page
-                                "link": self._append_affiliate_tag(link, "ML"),
+                                "rating": rating, 
+                                "link": link, # Original link, will be converted later
                                 "image": image,
                             })
                         else:
-                            print(f"   Skipped low discount: {discount}% ({title[:30]}...)", flush=True)
-                            pass
+                             # print(f"   Skipped (Low Discount {discount}%): {title[:20]}...")
+                             pass
                     except Exception as e:
                         continue
 
